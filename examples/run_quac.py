@@ -156,8 +156,9 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                         doc_tokens[-1] += c
                     prev_is_whitespace = False
                 char_to_word_offset.append(len(doc_tokens) - 1)
-
+            count = 0
             for qa in paragraph["qas"]:
+                count += 1
                 qas_id = qa["id"]
                 question_text = qa["question"]
                 ## mod start
@@ -218,6 +219,9 @@ def read_squad_examples(input_file, is_training, version_2_with_negative):
                     end_position=end_position,
                     is_impossible=is_impossible)
                 examples.append(example)
+    #print(examples,"$###########################")
+    #print(count, "no of questions")
+    #print(len(examples), " = examples")
     return examples
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
@@ -227,6 +231,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     unique_id = 1000000000
 
     features = []
+    #print(len(examples), " = length of examples")
     for (example_index, example) in enumerate(examples):
         query_tokens = tokenizer.tokenize(example.question_text)
 
@@ -276,7 +281,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             if start_offset + length == len(all_doc_tokens):
                 break
             start_offset += min(length, doc_stride)
-
+        #print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+        #print(len(doc_spans), " = doc spans length")
         for (doc_span_index, doc_span) in enumerate(doc_spans):
             tokens = []
             token_to_orig_map = {}
@@ -339,31 +345,31 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             if is_training and example.is_impossible:
                 start_position = 0
                 end_position = 0
-            if example_index < 20:
-                logger.info("*** Example ***")
-                logger.info("unique_id: %s" % (unique_id))
-                logger.info("example_index: %s" % (example_index))
-                logger.info("doc_span_index: %s" % (doc_span_index))
-                logger.info("tokens: %s" % " ".join(tokens))
-                logger.info("token_to_orig_map: %s" % " ".join([
-                    "%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()]))
-                logger.info("token_is_max_context: %s" % " ".join([
-                    "%d:%s" % (x, y) for (x, y) in token_is_max_context.items()
-                ]))
-                logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-                logger.info(
-                    "input_mask: %s" % " ".join([str(x) for x in input_mask]))
-                logger.info(
-                    "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-                if is_training and example.is_impossible:
-                    logger.info("impossible example")
-                if is_training and not example.is_impossible:
-                    answer_text = " ".join(tokens[start_position:(end_position + 1)])
-                    logger.info("start_position: %d" % (start_position))
-                    logger.info("end_position: %d" % (end_position))
-                    logger.info(
-                        "answer: %s" % (answer_text))
-
+            #if example_index < 20:
+            #    logger.info("*** Example ***")
+            #    logger.info("unique_id: %s" % (unique_id))
+            #    logger.info("example_index: %s" % (example_index))
+            #    logger.info("doc_span_index: %s" % (doc_span_index))
+            #    logger.info("tokens: %s" % " ".join(tokens))
+            #    logger.info("token_to_orig_map: %s" % " ".join([
+            #        "%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()]))
+            #    logger.info("token_is_max_context: %s" % " ".join([
+            #        "%d:%s" % (x, y) for (x, y) in token_is_max_context.items()
+            #    ]))
+            #    logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+            #    logger.info(
+            #        "input_mask: %s" % " ".join([str(x) for x in input_mask]))
+            #    logger.info(
+            #        "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            #    if is_training and example.is_impossible:
+            #        logger.info("impossible example")
+            #    if is_training and not example.is_impossible:
+            #        answer_text = " ".join(tokens[start_position:(end_position + 1)])
+            #        logger.info("start_position: %d" % (start_position))
+            #        logger.info("end_position: %d" % (end_position))
+            #        logger.info(
+            #            "answer: %s" % (answer_text))
+            #print(tokens, "tokensssssssss")
             features.append(
                 InputFeatures(
                     unique_id=unique_id,
@@ -379,7 +385,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                     end_position=end_position,
                     is_impossible=example.is_impossible))
             unique_id += 1
-
+    #print(len(features), "######################################## lenght ")
     return features
 
 
@@ -907,8 +913,12 @@ def main():
     if args.do_train:
         train_examples = read_squad_examples(
             input_file=args.train_file, is_training=True, version_2_with_negative=args.version_2_with_negative)
+        #print(num_train_optimization_steps,"######################", "before")
         num_train_optimization_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
+        #print(num_train_optimization_steps,"######################", "after")
+        #print(len(train_examples))
+        #print(args.train_batch_size)
         if args.local_rank != -1:
             num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
@@ -968,21 +978,21 @@ def main():
         cached_train_features_file = args.train_file+'_{0}_{1}_{2}_{3}'.format(
             list(filter(None, args.bert_model.split('/'))).pop(), str(args.max_seq_length), str(args.doc_stride), str(args.max_query_length))
         train_features = None
-        try:
-            with open(cached_train_features_file, "rb") as reader:
-                train_features = pickle.load(reader)
-        except:
-            train_features = convert_examples_to_features(
+        #try:
+        #    with open(cached_train_features_file, "rb") as reader:
+        #        train_features = pickle.load(reader)
+        #except:
+        train_features = convert_examples_to_features(
                 examples=train_examples,
                 tokenizer=tokenizer,
                 max_seq_length=args.max_seq_length,
                 doc_stride=args.doc_stride,
                 max_query_length=args.max_query_length,
                 is_training=True)
-            if args.local_rank == -1 or torch.distributed.get_rank() == 0:
-                logger.info("  Saving train features into cached file %s", cached_train_features_file)
-                with open(cached_train_features_file, "wb") as writer:
-                    pickle.dump(train_features, writer)
+        if args.local_rank == -1 or torch.distributed.get_rank() == 0:
+            logger.info("  Saving train features into cached file %s", cached_train_features_file)
+        #with open(cached_train_features_file, "wb") as writer:
+        #            pickle.dump(train_features, writer)
         logger.info("***** Running training *****")
         logger.info("  Num orig examples = %d", len(train_examples))
         logger.info("  Num split examples = %d", len(train_features))
